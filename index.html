@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#09090b" />
+  <meta name="description" content="HemoLab — banco de questões de Hematologia com progresso, casos clínicos e ranking local." />
+  <title>HemoLab | Banco de Questões de Hematologia</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#09090b', panel: '#111114', panel2: '#18181b', line: '#2a2529', wine: '#7f1d1d', crimson: '#be123c', rose: '#fb7185', mist: '#a1a1aa'
+          },
+          boxShadow: { glow: '0 0 0 1px rgba(190,18,60,.18), 0 20px 50px rgba(0,0,0,.25)' }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { scrollbar-width: thin; scrollbar-color: #52202b #111114; }
+    body { background: #09090b; color: #f4f4f5; }
+    .app-grid { background-image: radial-gradient(circle at 15% 0%, rgba(127,29,29,.15), transparent 34%), linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px); background-size: auto, 36px 36px, 36px 36px; }
+    .glass { background: rgba(17,17,20,.84); backdrop-filter: blur(16px); }
+    .progress-fill { transition: width .5s ease; }
+    .fade-in { animation: fadeIn .28s ease both; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .option-card { transition: .2s ease; }
+    .option-card:hover:not(.disabled) { transform: translateY(-2px); border-color: #9f1239; background: #24151a; }
+    .option-card.correct { border-color: #22c55e !important; background: rgba(20,83,45,.28) !important; }
+    .option-card.wrong { border-color: #ef4444 !important; background: rgba(127,29,29,.28) !important; }
+    .option-card.disabled { cursor: default; }
+    .nav-btn.active { color: #fff; background: linear-gradient(90deg, rgba(127,29,29,.65), rgba(127,29,29,.18)); border-color: rgba(190,18,60,.5); }
+    .stat-card { background: linear-gradient(135deg, rgba(24,24,27,.95), rgba(17,17,20,.92)); }
+    .toast { animation: toastIn .25s ease both; }
+    @keyframes toastIn { from { transform: translateY(15px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+  </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+  <div id="toast-root" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+  <div class="min-h-screen app-grid">
+    <header class="sticky top-0 z-30 border-b border-line glass">
+      <div class="mx-auto flex max-w-[1500px] items-center justify-between px-4 py-3 sm:px-6">
+        <button onclick="showView('dashboard')" class="flex items-center gap-3 text-left">
+          <span class="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-wine to-crimson text-lg font-black shadow-glow">H</span>
+          <span><span class="block text-sm font-black tracking-[.2em] text-zinc-100">HEMO<span class="text-rose">LAB</span></span><span class="block text-[10px] uppercase tracking-[.22em] text-zinc-500">Hematologia • estudo clínico</span></span>
+        </button>
+        <div class="hidden items-center gap-3 sm:flex"><span class="rounded-full border border-emerald-900/70 bg-emerald-950/40 px-3 py-1 text-xs text-emerald-300"><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"></span> progresso salvo localmente</span><button onclick="openNameModal()" class="rounded-lg border border-line px-3 py-2 text-xs text-zinc-300 transition hover:border-rose/50 hover:text-white">Perfil: <strong id="user-name-top">Você</strong></button></div>
+        <button onclick="openNameModal()" class="rounded-lg border border-line px-3 py-2 text-xs text-zinc-300 sm:hidden">Perfil</button>
+      </div>
+    </header>
+
+    <div class="mx-auto flex max-w-[1500px]">
+      <aside class="hidden min-h-[calc(100vh-65px)] w-64 shrink-0 border-r border-line bg-zinc-950/40 p-4 lg:block">
+        <p class="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.22em] text-zinc-600">Navegação</p>
+        <nav class="space-y-1">
+          <button data-nav="dashboard" onclick="showView('dashboard')" class="nav-btn active flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-3 text-left text-sm text-zinc-400 transition hover:text-white"><span>⌂</span> Dashboard</button>
+          <button data-nav="objective" onclick="showView('objective')" class="nav-btn flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-3 text-left text-sm text-zinc-400 transition hover:text-white"><span>◈</span> Questões objetivas</button>
+          <button data-nav="essay" onclick="showView('essay')" class="nav-btn flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-3 text-left text-sm text-zinc-400 transition hover:text-white"><span>✎</span> Discursivas</button>
+        </nav>
+        <div class="mt-10 rounded-2xl border border-red-950/70 bg-gradient-to-br from-red-950/50 to-zinc-950 p-4"><p class="text-xs font-semibold text-rose-300">Dica clínica</p><p class="mt-2 text-xs leading-5 text-zinc-400">Leia o hemograma como uma história: série vermelha, branca e plaquetas formam um padrão.</p></div>
+        <div class="mt-6 border-t border-line pt-5"><p class="px-3 text-[10px] uppercase tracking-[.18em] text-zinc-600">Sessão</p><div class="mt-3 px-3"><div class="mb-2 flex justify-between text-xs"><span class="text-zinc-500">Progresso geral</span><strong id="side-progress" class="text-rose">0%</strong></div><div class="h-1.5 overflow-hidden rounded-full bg-zinc-800"><div id="side-progress-bar" class="progress-fill h-full rounded-full bg-gradient-to-r from-wine to-rose" style="width:0%"></div></div></div></div>
+      </aside>
+
+      <main class="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-6 lg:px-10 lg:pb-10">
+        <div id="view-dashboard" class="fade-in"></div>
+        <div id="view-objective" class="hidden fade-in"></div>
+        <div id="view-essay" class="hidden fade-in"></div>
+      </main>
+    </div>
+
+    <nav class="fixed bottom-0 left-0 right-0 z-30 border-t border-line bg-zinc-950/95 p-2 backdrop-blur lg:hidden"><div class="mx-auto grid max-w-lg grid-cols-3 gap-1"><button data-nav-mobile="dashboard" onclick="showView('dashboard')" class="mobile-nav rounded-xl px-2 py-2 text-center text-[11px] text-zinc-500"><span class="block text-lg">⌂</span>Início</button><button data-nav-mobile="objective" onclick="showView('objective')" class="mobile-nav rounded-xl px-2 py-2 text-center text-[11px] text-zinc-500"><span class="block text-lg">◈</span>Objetivas</button><button data-nav-mobile="essay" onclick="showView('essay')" class="mobile-nav rounded-xl px-2 py-2 text-center text-[11px] text-zinc-500"><span class="block text-lg">✎</span>Discursivas</button></div></nav>
+  </div>
+
+  <div id="modal-root"></div>
+
+<script>
+const objectiveQuestions = [
+  { id:'obj1', theme:'Anemias', level:'Intermediário', title:'Anemia ferropriva: padrão laboratorial', stem:'Mulher de 34 anos apresenta fadiga, pica e menorragia. Hemograma: Hb 8,7 g/dL, VCM 68 fL, HCM 21 pg, RDW 19%. Ferritina 5 ng/mL, ferro sérico reduzido e CTLF aumentada. Qual interpretação é a mais adequada?', options:['Anemia de doença crônica, com ferro sequestrado','Anemia ferropriva por perda crônica de sangue','Talassemia menor sem deficiência de ferro','Anemia megaloblástica por deficiência de B12','Anemia hemolítica autoimune'], answer:1, explanation:'O padrão é clássico de deficiência de ferro: microcitose e hipocromia com RDW elevado, ferritina baixa, ferro baixo e capacidade total de ligação do ferro aumentada. Em uma mulher com menorragia, a perda ginecológica crônica é uma causa provável, mas deve-se investigar a fonte do sangramento.', tags:['VCM baixo','Ferritina baixa','RDW alto'] },
+  { id:'obj2', theme:'Anemias', level:'Avançado', title:'Hemograma na anemia megaloblástica', stem:'Paciente de 62 anos tem parestesias, glossite e marcha instável. Hb 7,9 g/dL, VCM 118 fL, neutrófilos hipersegmentados e LDH muito elevada. Qual achado favorece deficiência de vitamina B12 em vez de deficiência de folato?', options:['Reticulocitopenia','Macrocitose importante','Neutrófilos hipersegmentados','Manifestações neurológicas','LDH elevada'], answer:3, explanation:'As manifestações neurológicas — parestesias, alteração de marcha e comprometimento proprioceptivo — são particularmente associadas à deficiência de vitamina B12. Folato e B12 podem causar anemia megaloblástica, mas a reposição isolada de folato em deficiência de B12 pode piorar a lesão neurológica.', tags:['VCM alto','Neuropatia','B12'] },
+  { id:'obj3', theme:'Onco-hematologia', level:'Avançado', title:'Leucemia promielocítica aguda', stem:'Homem de 29 anos chega com equimoses difusas, sangramento gengival e febre. Plaquetas 18.000/mm³. O coagulograma evidencia TP e TTPa prolongados, fibrinogênio baixo e D-dímero elevado. O esfregaço mostra promielócitos anômalos com bastões de Auer. Qual conduta é prioritária?', options:['Aguardar imunofenotipagem para iniciar tratamento','Iniciar ácido transretinoico (ATRA) imediatamente','Administrar apenas heparina não fracionada','Iniciar ferro intravenoso','Realizar esplenectomia de urgência'], answer:1, explanation:'A combinação de promielócitos anômalos e coagulação intravascular disseminada sugere leucemia promielocítica aguda. O ATRA deve ser iniciado imediatamente diante da suspeita, antes mesmo da confirmação molecular, pois reduz rapidamente o risco de morte por coagulopatia. O suporte transfusional é essencial.', tags:['ATRA','CIVD','Bastões de Auer'] },
+  { id:'obj4', theme:'Imuno-hematologia', level:'Intermediário', title:'Púrpura trombocitopênica imune', stem:'Mulher de 27 anos apresenta petéquias e epistaxe. Hb e leucócitos normais; plaquetas 12.000/mm³. TP e TTPa normais. Não há esplenomegalia. Qual diagnóstico é mais provável?', options:['Púrpura trombocitopênica imune (PTI)','Coagulação intravascular disseminada','Púrpura trombótica trombocitopênica','Hipersplenismo','Leucemia aguda'], answer:0, explanation:'A trombocitopenia isolada, com provas de coagulação normais e ausência de esplenomegalia, é compatível com PTI. Na PTI, a destruição imune periférica de plaquetas predomina. A avaliação deve excluir causas secundárias e medicamentos, e a gravidade do sangramento orienta o tratamento.', tags:['Plaquetas isoladas','TP normal','TTPa normal'] },
+  { id:'obj5', theme:'Coagulopatias', level:'Intermediário', title:'Hemofilia A', stem:'Menino de 8 anos apresenta hemartroses recorrentes após pequenos traumas. O TP é normal e o TTPa está prolongado. O teste de mistura corrige o TTPa. Qual fator está mais provavelmente reduzido?', options:['Fator II','Fator V','Fator VIII','Fator VII','Fator XIII'], answer:2, explanation:'Hemofilia A é causada por deficiência do fator VIII, geralmente ligada ao X. O padrão clássico é TP normal, TTPa prolongado e correção no teste de mistura, indicando deficiência de fator em vez de inibidor. Hemartroses profundas são típicas.', tags:['Fator VIII','Herança ligada ao X','Hemartrose'] },
+  { id:'obj6', theme:'Onco-hematologia', level:'Avançado', title:'Leucemia mieloide crônica', stem:'Paciente de 48 anos apresenta sudorese noturna, perda ponderal e esplenomegalia. Leucócitos 142.000/mm³ com desvio à esquerda e basofilia. A pesquisa demonstra translocação t(9;22). Qual alvo terapêutico é central?', options:['CD20','BCR-ABL1 tirosina-quinase','JAK2 exclusivamente','CD3','PML-RARA'], answer:1, explanation:'A t(9;22) forma o cromossomo Filadélfia e o gene de fusão BCR-ABL1, cuja tirosina-quinase constitutivamente ativa impulsiona a LMC. Inibidores de tirosina-quinase, como imatinibe, são a base do tratamento dirigido.', tags:['BCR-ABL1','Filadélfia','LMC'] }
+];
+const essayQuestions = [
+  { id:'ess1', theme:'Anemias', level:'Avançado', title:'Caso integrado: anemia macrocítica', stem:'Uma paciente de 58 anos apresenta fadiga progressiva, parestesias nos pés e dificuldade para caminhar. Hemograma: Hb 8,2 g/dL, VCM 123 fL, leucócitos 2.900/mm³, plaquetas 105.000/mm³. Esfregaço: macro-ovalócitos e neutrófilos hipersegmentados. LDH e bilirrubina indireta estão elevadas. Solicita-se que você formule a hipótese diagnóstica, explique o mecanismo e indique exames confirmatórios e conduta inicial.', answer:'O quadro sugere anemia megaloblástica por deficiência de vitamina B12, possivelmente por anemia perniciosa. A síntese defeituosa de DNA causa eritropoiese ineficaz e pode comprometer as três linhagens, explicando a pancitopenia, a LDH elevada e a bilirrubina indireta por hemólise intramedular. Devem ser dosadas vitamina B12, folato, ácido metilmalônico e homocisteína; investigar anticorpos antifator intrínseco e anticélula parietal. A reposição de B12 deve ser iniciada, especialmente porque há sintomas neurológicos, sem aguardar toda a investigação.', criteria:['Reconhecer anemia megaloblástica','Relacionar pancitopenia e hemólise intramedular','Diferenciar B12 de folato pelos sintomas neurológicos','Citar B12, folato, ácido metilmalônico e homocisteína','Propor reposição de B12 e investigação etiológica'] },
+  { id:'ess2', theme:'Coagulopatias', level:'Avançado', title:'Interpretação de coagulograma', stem:'Homem de 23 anos apresenta sangramento prolongado após extração dentária. Nega hemartroses. TP normal, TTPa discretamente prolongado, contagem de plaquetas normal. O teste de mistura corrige o TTPa. Discuta o diagnóstico diferencial, a interpretação do teste e a abordagem inicial.', answer:'O padrão indica alteração da via intrínseca por deficiência de fator ou, menos provavelmente, interferência pré-analítica. A correção no teste de mistura favorece deficiência de fator, enquanto a ausência de hemartroses e o sangramento mucoso tornam doença de von Willebrand uma hipótese importante, pois pode reduzir o fator VIII. Deve-se revisar medicamentos e coleta, dosar fator VIII, fator IX, atividade e antígeno do fator de von Willebrand e considerar testes de função plaquetária. A conduta depende do diagnóstico e do procedimento, podendo incluir concentrado de fator ou desmopressina em casos selecionados.', criteria:['Identificar via intrínseca alterada','Interpretar correção no teste de mistura','Considerar doença de von Willebrand','Diferenciar padrão mucoso de hemartrose','Indicar dosagens de fatores e vWF'] },
+  { id:'ess3', theme:'Onco-hematologia', level:'Avançado', title:'Leucocitose e esfregaço', stem:'Paciente de 67 anos apresenta febre, astenia e equimoses. Hemograma: Hb 8,5 g/dL, plaquetas 34.000/mm³ e leucócitos 58.000/mm³. O esfregaço mostra 35% de blastos. Explique as prioridades diagnósticas e terapêuticas nas primeiras horas.', answer:'O caso deve ser tratado como suspeita de leucemia aguda com falência medular até prova em contrário. É prioritário avaliar instabilidade, infecção, sangramento e sinais de leucostase. Devem ser solicitados imunofenotipagem por citometria, cariótipo, FISH/PCR conforme suspeita, coagulograma, fibrinogênio, eletrólitos, ácido úrico, creatinina e LDH. Deve-se iniciar suporte transfusional individualizado, antibiótico empírico se neutropenia febril, prevenção/tratamento da síndrome de lise tumoral e, se houver suspeita de leucemia promielocítica, ATRA imediatamente.', criteria:['Reconhecer leucemia aguda','Priorizar suporte e estabilização','Solicitar imunofenotipagem e estudos genéticos','Avaliar CIVD e lise tumoral','Citar ATRA se houver suspeita de LPA'] }
+];
+const supplementalObjectiveQuestions = [
+  { id:'sup1', theme:'Anemias', level:'Intermediário', title:'PA 1 • Anemia falciforme e eletroforese', stem:'Um homem de 30 anos apresenta eletroforese de hemoglobina com 80% de hemoglobina S. Em relação ao caso, assinale a alternativa correta.', options:['Pessoas com traço falciforme (Hb AS) podem ser levemente anêmicas.','Raramente são encontradas hemácias em foice em pacientes HBSS assintomáticos.','Pacientes HbSS têm crises hemolíticas principalmente por deficiência de ácido fólico.','Os primeiros sintomas dos pacientes com HbSS começam após os 6 meses de vida.','Infecções em HbSS são mais frequentemente causadas por bactérias atípicas.'], answer:3, explanation:'Na anemia falciforme, os primeiros sintomas costumam surgir após a queda da hemoglobina fetal, geralmente por volta dos 5–6 meses de vida. O traço falciforme em geral não causa anemia significativa; as crises hemolíticas da HbSS decorrem da falcização, e as infecções graves são especialmente associadas a bactérias encapsuladas.', tags:['HbSS','HbS','Hemoglobina fetal'] },
+  { id:'sup2', theme:'Anemias', level:'Intermediário', title:'PA 1 • Manifestação incomum na doença falciforme', stem:'Em relação às manifestações clínicas da anemia falciforme, qual destas não é comum?', options:['Síndrome torácica aguda.','Acidente vascular cerebral isquêmico.','Colelitíase.','Dactilite.','Esplenomegalia gigante.'], answer:4, explanation:'A doença falciforme pode causar síndrome torácica aguda, AVC, colelitíase por hemólise crônica e dactilite. A autoesplenectomia progressiva é típica, portanto esplenomegalia gigante não é uma manifestação habitual em adultos com HbSS.', tags:['Dactilite','Autoesplenectomia','Síndrome torácica'] },
+  { id:'sup3', theme:'Imuno-hematologia', level:'Avançado', title:'PA 1 • Anemia hemolítica autoimune no LES', stem:'Mulher jovem com lúpus apresenta anemia grave, palidez e icterícia. Hb 5,9 g/dL, VCM 104 fL e RDW normal. Qual é a melhor conduta inicial?', options:['Repor vitamina B12 e ácido fólico.','Solicitar teste da antiglobulina direta e provas de hemólise.','Realizar exame de medula óssea para afastar anemia aplásica.','Realizar eletroforese de hemoglobina.','Investigar anemia perniciosa com anticorpos anti-fator intrínseco.'], answer:1, explanation:'A associação de LES, anemia aguda, icterícia e macrocitose discreta sugere hemólise autoimune. A prioridade é confirmar hemólise com reticulócitos, LDH, bilirrubina indireta e haptoglobina, além do teste da antiglobulina direta (Coombs direto).', tags:['LES','Coombs direto','Hemólise'] },
+  { id:'sup4', theme:'Anemias', level:'Intermediário', title:'PA 1 • Anemia megaloblástica e neutrófilos hipersegmentados', stem:'Homem de 55 anos apresenta Hb 6,3 g/dL, VCM 114 fL, reticulócitos baixos e neutrófilos hipersegmentados. Qual diagnóstico e conduta são mais adequados?', options:['Anemia da doença crônica; tratar apenas a doença de base.','Deficiência de folato; investigar B12 e folato e iniciar reposição apropriada.','Deficiência de G6PD; repor apenas ácido fólico.','Esferocitose hereditária; repor ferro parenteral.','Eliptocitose hereditária; realizar transfusão como tratamento definitivo.'], answer:1, explanation:'Macrocitose, reticulocitopenia e neutrófilos hipersegmentados indicam anemia megaloblástica, por deficiência de B12 ou folato. É importante dosar ambos e não tratar folato isoladamente sem excluir B12, pois a deficiência de B12 pode causar dano neurológico progressivo.', tags:['VCM alto','Hipersegmentação','Reticulocitopenia'] },
+  { id:'sup5', theme:'Anemias', level:'Intermediário', title:'PA 1 • Crise vaso-oclusiva', stem:'Paciente jovem com doença falciforme apresenta dor intensa recorrente em membros inferiores, Hb 7,2 g/dL, leucocitose, plaquetose e reticulocitose. A melhor conduta é:', options:['Transfusão imediata e antibióticos para todos os casos.','Analgésicos apenas quando necessário, evitando opioides.','Hidratação e analgesia adequada para estabilização.','Evitar analgésicos para não mascarar complicações.','Hidratação, analgesia adequada e, assim que possível, iniciar hidroxiureia.'], answer:4, explanation:'A crise vaso-oclusiva requer avaliação de gravidade, hidratação criteriosa, analgesia adequada — inclusive opioides quando indicados — e pesquisa de complicações. Após a estabilização e avaliação especializada, a hidroxiureia reduz a frequência de crises recorrentes.', tags:['Crise vaso-oclusiva','Hidroxiureia','Analgesia'] },
+  { id:'sup6', theme:'Anemias', level:'Intermediário', title:'PA 1 • Ferro na anemia por perda menstrual', stem:'Mulher de 28 anos, estável, com anemia microcítica e história de fluxo menstrual aumentado já tratado hormonalmente. Qual esquema é mais apropriado para tratar a anemia e reduzir recidiva?', options:['Transfundir dois concentrados de hemácias.','Transfusão associada a ferro intravenoso.','Apenas ferro endovenoso por cinco semanas.','Ferro oral em dose terapêutica por 4 a 6 meses.','Transfundir um concentrado de hemácias.'], answer:3, explanation:'Em paciente estável, a transfusão não é a primeira escolha. A reposição oral de ferro por tempo suficiente para corrigir a hemoglobina e repletar os estoques, junto ao controle da perda menstrual, é a estratégia habitual. Ferro intravenoso fica reservado para intolerância, má absorção ou necessidade específica.', tags:['Ferro oral','Microcitose','Menorragia'] },
+  { id:'sup7', theme:'Anemias', level:'Avançado', title:'PA 1 • Microcitose com reticulocitose', stem:'Mulher de 46 anos apresenta anemia, icterícia e reticulócitos de 150.000/mm³. Hb 7,2 g/dL e VCM 65 fL. Qual a melhor conduta investigativa?', options:['Repor vitamina B12 e ácido fólico.','Solicitar teste da antiglobulina direta.','Realizar medula óssea para afastar anemia aplásica.','Realizar eletroforese de hemoglobina para excluir talassemia.','Investigar o trato digestivo com endoscopia e colonoscopia.'], answer:3, explanation:'A microcitose importante associada à reticulocitose e icterícia sugere hemólise ou hemoglobinopatia, e a talassemia deve ser investigada com eletroforese. A decisão de investigar trato digestivo depende de confirmação de deficiência de ferro e do contexto clínico.', tags:['Microcitose','Reticulocitose','Talassemia'] },
+  { id:'sup8', theme:'Imuno-hematologia', level:'Intermediário', title:'PA 1 • Petéquias e hemostasia primária', stem:'Mulher de 38 anos apresenta equimoses, petéquias e gengivorragia. Não usa medicamentos e não tem hepatoesplenomegalia. Qual afirmação está correta?', options:['A investigação deve iniciar pela contagem de plaquetas, pois sugere alteração da hemostasia primária.','A investigação deve começar pela dosagem de fatores da via intrínseca.','A hipótese mais provável é distúrbio congênito de agregação plaquetária.','O diagnóstico mais provável é hemofilia A.','A investigação deve começar apenas por TAP e TTPa.'], answer:0, explanation:'Petéquias e sangramento mucoso sugerem defeito da hemostasia primária. A contagem de plaquetas é uma etapa inicial essencial; depois, conforme o resultado, avaliam-se função plaquetária, doença de von Willebrand e causas secundárias.', tags:['Petéquias','Hemostasia primária','Plaquetas'] },
+  { id:'sup9', theme:'Anemias', level:'Básico', title:'PA 1 • RDW nas anemias', stem:'Sobre o RDW, índice que mede a distribuição do volume eritrocitário, assinale a alternativa correta.', options:['RDW não é útil nas anemias microcíticas.','RDW é habitualmente elevado nas talassemias.','Aumento isolado de RDW indica estoques de ferro normais.','Na deficiência nutricional de ferro o RDW não se altera.','RDW é habitualmente elevado nas anemias ferroprivas.'], answer:4, explanation:'Na anemia ferropriva, a produção de hemácias ocorre em fases diferentes, aumentando a anisocitose e o RDW. Em talassemia menor, o RDW pode ser normal ou apenas discretamente elevado, o que ajuda na diferenciação em conjunto com o número de hemácias e a eletroforese.', tags:['RDW','Anisocitose','Ferropriva'] },
+  { id:'sup10', theme:'Coagulopatias', level:'Básico', title:'PA 1 • Hemostasia primária e secundária', stem:'Sobre os defeitos da hemostasia, podemos afirmar que:', options:['Na hemostasia primária, os sangramentos geralmente são superficiais, em pele, nariz e mucosas.','Na hemostasia primária, a história familiar é sempre ligada ao X.','Não existem diferenças clínicas entre hemostasia primária e secundária.','Na hemostasia secundária, o sangramento tende a ser imediato e superficial.','Na hemostasia secundária, petéquias são a manifestação típica.'], answer:0, explanation:'Defeitos da hemostasia primária causam sangramento mucocutâneo, como petéquias, epistaxe e gengivorragia. Defeitos da coagulação secundária tendem a causar sangramento profundo, hemartroses e hematomas, muitas vezes tardio após o trauma.', tags:['Hemostasia primária','Hemostasia secundária','Sangramento mucocutâneo'] },
+  { id:'sup11', theme:'Onco-hematologia', level:'Intermediário', title:'Avaliação 2024 • Leucocitose reacional', stem:'Mulher de 38 anos apresenta pielonefrite grave, febre, hipotensão e leucócitos 23.000/mm³ com 14% de bastões. As alterações no sangue são causadas por:', options:['Anemia por insuficiência renal e falta de eritropoetina.','Leucocitose por infiltração de blastos na medula.','Anemia por deficiência de ferro causada pela hematúria.','Leucocitose com desvio à esquerda reacional ao quadro infeccioso.','Anemia provocada por hemólise crônica.'], answer:3, explanation:'A leucocitose neutrofílica com bastões, no contexto de infecção bacteriana grave, representa desvio à esquerda reacional. A prioridade clínica é tratar a sepse, colher culturas quando apropriado e iniciar antibiótico e suporte.', tags:['Desvio à esquerda','Neutrofilia','Infecção'] },
+  { id:'sup12', theme:'Anemias', level:'Intermediário', title:'Avaliação 2024 • Padrões de VCM', stem:'Considere: I — doença renal crônica em hemodiálise; II — mulher vegana; III — mulher jovem com menorragia. As anemias microcítica, normocítica e macrocítica aparecem mais provavelmente em:', options:['I, III e II.','III, I e II.','I, II e III.','III, II e I.','II, III e I.'], answer:1, explanation:'A menorragia favorece deficiência de ferro e anemia microcítica (III); a doença renal crônica costuma causar anemia normocítica por deficiência relativa de eritropoetina (I); dieta vegana sem reposição adequada aumenta o risco de deficiência de B12 e macrocitose (II).', tags:['VCM','Doença renal','B12'] },
+  { id:'sup13', theme:'Anemias', level:'Intermediário', title:'Avaliação 2024 • Hemólise extravascular', stem:'Para confirmar a suspeita de anemia hemolítica extravascular, qual sinal clínico e exame são mais compatíveis?', options:['Hemoglobinúria e sumário de urina.','Palidez e perfil do ferro.','Taquicardia e contagem de reticulócitos.','Icterícia e bilirrubina indireta.','Dispneia e dosagem de vitamina B12.'], answer:3, explanation:'Na hemólise extravascular, macrófagos esplênicos e hepáticos removem hemácias e produzem aumento de bilirrubina indireta, que pode se manifestar como icterícia. Hemoglobinúria é mais característica de hemólise intravascular.', tags:['Hemólise extravascular','Bilirrubina indireta','Icterícia'] },
+  { id:'sup14', theme:'Anemias', level:'Intermediário', title:'Avaliação 2024 • Diagnóstico de anemia falciforme', stem:'Criança de 12 anos com anemia normocítica, icterícia, dores osteoarticulares recorrentes, dactilite e infecções repetidas apresenta qual diagnóstico?', options:['Leucemia aguda.','Anemia falciforme.','Anemia por sangramento menstrual.','Anemia ferropriva.','Falência da medula óssea.'], answer:1, explanation:'A combinação de hemólise crônica, crises vaso-oclusivas, dactilite e maior suscetibilidade a infecções é típica da doença falciforme. A confirmação é feita por eletroforese ou método equivalente de identificação de hemoglobinas.', tags:['Dactilite','Crise vaso-oclusiva','Hemólise crônica'] },
+  { id:'sup15', theme:'Anemias', level:'Avançado', title:'Avaliação 2024 • Anemia após cirurgia bariátrica', stem:'Mulher de 40 anos, submetida a bypass gástrico há 8 anos, apresenta parestesias e anemia macrocítica grave. Qual mecanismo e conduta são mais prováveis?', options:['Má absorção de vitamina B12; administrar vitamina B12 intramuscular mensal.','Perda menstrual e deficiência de ferro; reposição intravenosa de ferro.','Gastrite alcalina; omeprazol e ácido fólico.','Baixa ingesta de ferro; dieta e ferro oral.','Hemólise crônica; suplementar ácido fólico.'], answer:0, explanation:'O bypass gástrico reduz a absorção de B12 e pode causar anemia megaloblástica e manifestações neurológicas anos depois. A reposição parenteral de B12 é apropriada quando há má absorção ou sintomas neurológicos.', tags:['Bariátrica','B12','Parestesias'] },
+  { id:'sup16', theme:'Coagulopatias', level:'Intermediário', title:'Avaliação 2024 • Sangramento mucocutâneo com plaquetas normais', stem:'Jovem apresenta epistaxe recorrente, gengivorragia e equimoses. Hemoglobina, leucócitos e plaquetas são normais. Qual causa é mais provável?', options:['Anemia hemolítica hereditária.','Distúrbio da hemostasia secundária; solicitar TP.','Defeito de adesão ou agregação plaquetária.','Distúrbio da hemostasia secundária; solicitar TTPa.','Observar, pois plaquetas normais excluem doença.'], answer:2, explanation:'Sangramento mucocutâneo com contagem de plaquetas normal sugere defeito funcional plaquetário ou doença de von Willebrand, que afeta a adesão. A investigação pode incluir TP, TTPa, antígeno/atividade do vWF e testes de função plaquetária.', tags:['vWF','Adesão plaquetária','Epistaxe'] },
+  { id:'sup17', theme:'Coagulopatias', level:'Intermediário', title:'Avaliação 2024 • Doença de von Willebrand', stem:'Jovem com epistaxe frequente, menorragia e história semelhante na mãe e irmã apresenta anemia microcítica, TP normal e TTPa discretamente prolongado. A hipótese mais provável é:', options:['Hemofilia A.','Telangiectasia hemorrágica hereditária.','Doença de von Willebrand.','Anticoagulante lúpico.','Deficiência de fator da via intrínseca sem outra especificação.'], answer:2, explanation:'Sangramento mucocutâneo, menorragia, padrão familiar em ambos os sexos e TP normal favorecem doença de von Willebrand. O TTPa pode estar discretamente prolongado quando o fator VIII é reduzido por menor estabilidade.', tags:['Von Willebrand','Menorragia','Herança autossômica'] },
+  { id:'sup18', theme:'Coagulopatias', level:'Intermediário', title:'Avaliação 2024 • Hemofilias', stem:'Sobre as hemofilias, qual afirmação está correta?', options:['Na hemofilia A leve, a atividade do fator VIII varia entre 3–5%.','Na hemofilia grave, a hemartrose mais comum envolve pequenas articulações das mãos.','As principais manifestações hemorrágicas são musculares e articulares.','A deficiência hereditária do fator IX não causa distúrbio hemorrágico.','Hemofilia B é causada por deficiência do fator XI.'], answer:2, explanation:'Hemofilias A e B causam sangramentos profundos, especialmente hemartroses e hematomas musculares. Hemofilia A é deficiência de VIII e hemofilia B de IX; os níveis definem gravidade e não se limitam ao intervalo descrito na alternativa A.', tags:['Hemofilia A','Hemofilia B','Hemartrose'] }
+];
+const supplementalEssayQuestions = [
+  { id:'supess1', theme:'Imuno-hematologia', level:'Avançado', title:'Avaliação 2024 • Anemia hemolítica autoimune no LES', stem:'Mulher jovem com LES apresenta anemia grave, icterícia, Hb 5,9 g/dL, Ht 18%, VCM 94 fL e RDW 13%. Responda: quais exames confirmam o diagnóstico e qual o melhor tratamento inicial?', answer:'Solicitar provas de hemólise — contagem de reticulócitos, LDH, bilirrubina indireta e haptoglobina — e teste da antiglobulina direta (Coombs direto), esperado positivo na anemia hemolítica autoimune. A conduta inicial, após avaliação de gravidade e suporte transfusional quando necessário, é corticosteroide sistêmico; a investigação deve considerar atividade do LES e causas secundárias.', criteria:['Reconhecer hemólise','Solicitar Coombs direto','Citar provas de hemólise','Indicar corticosteroide','Comentar suporte transfusional conforme gravidade'] },
+  { id:'supess2', theme:'Coagulopatias', level:'Avançado', title:'Avaliação 2024 • Criança com sangramento profundo', stem:'Menino de 1 ano apresenta trauma importante no joelho, hematoma subgaleal extenso e equimoses. Um primo materno tem sintomas semelhantes. Responda: quais exames você solicita para confirmar a hipótese e qual conduta é necessária?', answer:'A hipótese principal é hemofilia, pela criança do sexo masculino, sangramento profundo e padrão ligado à linhagem materna. Solicitar hemograma e plaquetas, TP, TTPa, teste de mistura e dosagem dos fatores VIII e IX; o padrão esperado é TTPa prolongado com TP normal e correção no teste de mistura, seguido de redução do fator correspondente. A conduta é estabilização, avaliação do sangramento e reposição imediata do fator em falta, evitando procedimentos intramusculares e usando concentrado específico.', criteria:['Suspeitar de hemofilia','Solicitar TP, TTPa e teste de mistura','Dosar fatores VIII e IX','Interpretar TP normal e TTPa prolongado','Indicar reposição do fator'] }
+];
+objectiveQuestions.push(...supplementalObjectiveQuestions);
+essayQuestions.push(...supplementalEssayQuestions);
+
+const supplemental2ObjectiveQuestions = [
+  {
+    "id": "sup2_01",
+    "theme": "Coagulopatias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 01",
+    "stem": "Mulher, 26 anos, refere menorragia desde a menarca (troca 6–7 absorventes/dia nos primeiros 3 dias) e epistaxe espontânea ocasional. Mãe e irmã têm fluxo menstrual intenso. Hemograma: Hb 10,2 g/dL, VCM 78 fL, RDW 16%, plaquetas 245.000/mm³, leucócitos normais. TAP normal, TTPA R = 1,35 (VR até 1,20). Qual a hipótese mais provável?",
+    "options": [
+      "Hemofilia A leve",
+      "Doença de von Willebrand",
+      "Deficiência de fator VII",
+      "Púrpura trombocitopênica imune",
+      "Deficiência de vitamina K"
+    ],
+    "answer": 1,
+    "explanation": "História familiar em mulheres, menorragia, epistaxe, plaquetas normais e TTPA discretamente prolongado favorecem doença de von Willebrand, o distúrbio hemorrágico hereditário mais comum.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_02",
+    "theme": "Imuno-hematologia",
+    "level": "Básico",
+    "title": "Banco complementar • Questão 02",
+    "stem": "Menino de 7 anos com epistaxe recorrente bilateral, petéquias em tronco após crises de RGE e equimoses espontâneas. Mãe nega história familiar. Contagem de plaquetas 18.000/mm³, demais linhas normais. Qual o próximo passo mais adequado?",
+    "options": [
+      "Solicitar TAP e TTPA",
+      "Realizar esfregaço de sangue periférico e contagem em câmara",
+      "Dosar fatores VIII e IX",
+      "Iniciar prednisona empiricamente",
+      "Solicitar eletroforese de hemoglobina"
+    ],
+    "answer": 1,
+    "explanation": "Trombocitopenia isolada exige confirmar a contagem e excluir pseudotrombocitopenia no esfregaço antes de iniciar tratamento específico.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_03",
+    "theme": "Coagulopatias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 03",
+    "stem": "Paciente masculino, 4 anos, com hematoma subgaleal após queda da própria altura e sangramento articular no joelho direito. História familiar: tio materno com sangramentos graves na infância. Qual o exame mais específico para confirmar a hipótese principal?",
+    "options": [
+      "Tempo de protrombina",
+      "Contagem de plaquetas",
+      "Dosagem de fator VIII ou IX",
+      "Tempo de sangramento",
+      "Teste de Coombs direto"
+    ],
+    "answer": 2,
+    "explanation": "Hematomas profundos, hemartrose e padrão ligado ao tio materno sugerem hemofilia; a confirmação é feita pela dosagem dos fatores VIII e IX.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_04",
+    "theme": "Imuno-hematologia",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 04",
+    "stem": "Mulher de 32 anos, previamente hígida, apresenta petéquias, equimoses e gengivorragia há 10 dias, após quadro viral. Sem hepatoesplenomegalia. Hemograma: Hb 12,8 g/dL, leucócitos 7.200/mm³, plaquetas 12.000/mm³. Qual a conduta inicial mais apropriada?",
+    "options": [
+      "Transfusão de plaquetas imediatamente",
+      "Iniciar corticoterapia após exclusão de pseudotrombocitopenia",
+      "Solicitar medula óssea de urgência",
+      "Administrar imunoglobulina intravenosa isolada",
+      "Observar sem intervenção"
+    ],
+    "answer": 1,
+    "explanation": "Na PTI provável, deve-se confirmar que a trombocitopenia é real e excluir causas secundárias; em plaquetas muito baixas, corticosteroide é tratamento inicial frequente.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_05",
+    "theme": "Anemias",
+    "level": "Avançado",
+    "title": "Banco complementar • Questão 05",
+    "stem": "Homem de 48 anos com fadiga, palidez e coiloníquia. Hemograma: Hb 8,1 g/dL, VCM 68 fL, CHCM 26 g/dL, RDW 19%, reticulócitos 22.000/mm³, plaquetas 480.000/mm³. Qual o diagnóstico sindrômico e o próximo passo etiológico obrigatório?",
+    "options": [
+      "Anemia ferropriva; investigar trato gastrointestinal",
+      "Talassemia beta; solicitar eletroforese de hemoglobina",
+      "Anemia de doença crônica; dosar ferritina",
+      "Deficiência de B12; dosar vitamina B12",
+      "Esferocitose hereditária; solicitar teste de resistência osmótica"
+    ],
+    "answer": 0,
+    "explanation": "Microcitose, hipocromia, RDW alto, reticulócitos baixos e plaquetose reativa sugerem ferropriva. Em homem adulto, é obrigatório investigar perda gastrointestinal.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_06",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 06",
+    "stem": "Mulher de 55 anos, vegetariana estrita há 12 anos, com parestesias em membros inferiores e glossite. Hemograma: Hb 7,4 g/dL, VCM 118 fL, leucócitos 3.800/mm³ com hipersegmentação de neutrófilos, plaquetas 95.000/mm³, reticulócitos 18.000/mm³. Qual o mecanismo principal da anemia?",
+    "options": [
+      "Falha na hemoglobinização do citoplasma",
+      "Falha na síntese de DNA nuclear",
+      "Hemólise extravascular crônica",
+      "Perda sanguínea oculta",
+      "Sequestro esplênico"
+    ],
+    "answer": 1,
+    "explanation": "A deficiência de B12 ou folato prejudica a síntese de DNA nuclear, produzindo macrocitose, neutrófilos hipersegmentados e, em casos graves, pancitopenia.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_07",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 07",
+    "stem": "Jovem de 19 anos com anemia, icterícia e esplenomegalia. Mãe e avó materna esplenectomizadas por anemia. Hemograma: Hb 9,5 g/dL, VCM 86 fL, CHCM 37,8 g/dL, RDW 18%, reticulócitos 210.000/mm³. Qual o exame mais útil para confirmar a hipótese?",
+    "options": [
+      "Eletroforese de hemoglobina",
+      "Teste de Coombs direto",
+      "Teste de fragilidade osmótica ou EMA-binding",
+      "Dosagem de G6PD",
+      "Medula óssea"
+    ],
+    "answer": 2,
+    "explanation": "Esferocitose hereditária costuma apresentar CHCM elevada, hemólise, esplenomegalia e história familiar. Fragilidade osmótica ou EMA-binding ajudam a confirmar.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_08",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 08",
+    "stem": "Criança de 3 anos com dactilite, crises de dor óssea recorrentes e anemia hemolítica. Presença de drepanócitos no esfregaço. Qual a conduta inicial na crise dolorosa aguda?",
+    "options": [
+      "Transfusão imediata de concentrado de hemácias",
+      "Hidratação e analgesia adequada",
+      "Iniciar hidroxiureia na crise",
+      "Antibiótico empírico isolado",
+      "Esplenectomia de urgência"
+    ],
+    "answer": 1,
+    "explanation": "Na crise dolorosa da doença falciforme, a prioridade é avaliação de complicações, hidratação criteriosa e analgesia adequada; transfusão não é automática.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_09",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 09",
+    "stem": "Mulher de 40 anos com menorragia e anemia microcítica hipocrômica (VCM 72 fL, RDW 17%). Após reposição de ferro oral por 3 meses, Hb sobe apenas de 8,2 para 9,0 g/dL. Qual a melhor conduta?",
+    "options": [
+      "Manter ferro oral por mais 3 meses",
+      "Trocar para ferro intravenoso e investigar causa de má absorção ou perda contínua",
+      "Solicitar eletroforese de hemoglobina",
+      "Transfundir 2 concentrados de hemácias",
+      "Adicionar ácido fólico"
+    ],
+    "answer": 1,
+    "explanation": "Resposta insuficiente ao ferro oral exige investigar adesão, má absorção e perda contínua. Ferro intravenoso é opção quando há falha, intolerância ou necessidade de reposição rápida.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_10",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 10",
+    "stem": "Homem de 22 anos com icterícia, anemia e esplenomegalia. Reticulócitos elevados, bilirrubina indireta aumentada, haptoglobina diminuída. Teste de Coombs negativo. Qual a classificação mais provável da hemólise?",
+    "options": [
+      "Intravascular imune",
+      "Extravascular hereditária",
+      "Intravascular por deficiência enzimática",
+      "Extravascular por anticorpo quente",
+      "Mecânica"
+    ],
+    "answer": 1,
+    "explanation": "Icterícia, esplenomegalia, reticulocitose, haptoglobina baixa e Coombs negativo caracterizam hemólise extravascular hereditária, como esferocitose.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_11",
+    "theme": "Imuno-hematologia",
+    "level": "Básico",
+    "title": "Banco complementar • Questão 11",
+    "stem": "Paciente de 15 anos com petéquias disseminadas após gripe, plaquetas 9.000/mm³, sem sangramento ativo. Hemoglobina e leucócitos normais. Qual a primeira medida diagnóstica?",
+    "options": [
+      "Medula óssea",
+      "Confirmar contagem de plaquetas em lâmina e excluir pseudo-trombocitopenia",
+      "Dosar anticorpos antiplaquetários",
+      "Solicitar TAP e TTPA",
+      "Iniciar prednisona sem confirmação"
+    ],
+    "answer": 1,
+    "explanation": "Antes de rotular PTI, confirma-se a plaquetopenia em lâmina e exclui-se pseudotrombocitopenia por agregação in vitro.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_12",
+    "theme": "Coagulopatias",
+    "level": "Avançado",
+    "title": "Banco complementar • Questão 12",
+    "stem": "Mulher de 28 anos com sangramento menstrual intenso desde a adolescência, epistaxe e equimoses. TTPA discretamente alargado, TAP normal, plaquetas normais. Qual o teste mais específico?",
+    "options": [
+      "Dosagem de fator VIII",
+      "Atividade do fator de von Willebrand e antígeno",
+      "Tempo de sangramento",
+      "Agregação plaquetária com ristocetina isolada",
+      "Dosagem de fator IX"
+    ],
+    "answer": 1,
+    "explanation": "O diagnóstico de doença de von Willebrand é apoiado pela atividade do fator de von Willebrand e pelo antígeno, interpretados em conjunto com o fator VIII.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_13",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 13",
+    "stem": "Homem de 60 anos com fadiga, glossite e neuropatia. VCM 112 fL, neutrófilos hipersegmentados, reticulócitos baixos. Qual a reposição mais adequada se confirmada deficiência de B12?",
+    "options": [
+      "Ácido fólico oral isolado",
+      "Vitamina B12 intramuscular mensal após carga inicial",
+      "Ferro intravenoso",
+      "Transfusão de hemácias",
+      "Ácido fólico + B12 oral"
+    ],
+    "answer": 1,
+    "explanation": "Após uma carga inicial, a reposição intramuscular de vitamina B12 é adequada quando há deficiência confirmada com anemia megaloblástica e sintomas neurológicos.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_14",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 14",
+    "stem": "Criança de 8 anos com anemia, icterícia e esplenomegalia. Esfregaço mostra esferócitos. CHCM elevado. Qual o tratamento definitivo em casos graves com hiperesplenismo?",
+    "options": [
+      "Corticoides",
+      "Esplenectomia",
+      "Transfusões regulares",
+      "Hidroxiureia",
+      "Imunoglobulina"
+    ],
+    "answer": 1,
+    "explanation": "Na esferocitose hereditária grave com hiperesplenismo, a esplenectomia pode ser tratamento definitivo após avaliação individual de riscos e vacinação.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_15",
+    "theme": "Imuno-hematologia",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 15",
+    "stem": "Mulher de 35 anos com LES recente apresenta anemia súbita, icterícia e reticulocitose. Qual o exame confirmatório prioritário?",
+    "options": [
+      "Eletroforese de hemoglobina",
+      "Teste de Coombs direto",
+      "Dosagem de ferro sérico",
+      "Medula óssea",
+      "Teste de fragilidade osmótica"
+    ],
+    "answer": 1,
+    "explanation": "Anemia súbita, icterícia e reticulocitose no LES sugerem anemia hemolítica autoimune; o teste de Coombs direto é o exame confirmatório prioritário.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_16",
+    "theme": "Imuno-hematologia",
+    "level": "Básico",
+    "title": "Banco complementar • Questão 16",
+    "stem": "Paciente com plaquetopenia de 25.000/mm³, sem sangramento, pós-infecção viral. Qual a classificação fisiopatológica mais comum nesse contexto?",
+    "options": [
+      "Diminuição da produção",
+      "Aumento da destruição imunológica",
+      "Sequestro esplênico isolado",
+      "Consumo por CIVD",
+      "Pseudotrombocitopenia"
+    ],
+    "answer": 1,
+    "explanation": "Após infecção viral, trombocitopenia isolada geralmente decorre de aumento da destruição imunológica periférica, padrão típico da PTI.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_17",
+    "theme": "Anemias",
+    "level": "Básico",
+    "title": "Banco complementar • Questão 17",
+    "stem": "Homem de 45 anos com anemia microcítica, RDW elevado e plaquetose. Qual o achado que mais favorece ferropriva em relação à talassemia?",
+    "options": [
+      "VCM muito baixo",
+      "RDW elevado",
+      "Reticulócitos elevados",
+      "Esplenomegalia",
+      "História familiar positiva"
+    ],
+    "answer": 1,
+    "explanation": "RDW elevado indica anisocitose e favorece deficiência de ferro em relação à talassemia, embora a interpretação deva ser combinada com ferritina e demais índices.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_18",
+    "theme": "Coagulopatias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 18",
+    "stem": "Menino de 2 anos com hematoma muscular após trauma mínimo e história familiar de sangramento em tio materno. TTPA alargado, TAP normal. Qual a deficiência mais provável?",
+    "options": [
+      "Fator VII",
+      "Fator VIII",
+      "Fator XI",
+      "Fibrinogênio",
+      "Fator XIII"
+    ],
+    "answer": 1,
+    "explanation": "TTPA prolongado com TP normal e sangramento profundo em menino com história materna sugerem hemofilia A por deficiência do fator VIII.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_19",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 19",
+    "stem": "Mulher de 50 anos com anemia, VCM 105 fL, hipersegmentação neutrofílica e sintomas neurológicos. Qual a carência mais associada a esse quadro?",
+    "options": [
+      "Ferro",
+      "Ácido fólico isolado",
+      "Vitamina B12",
+      "Vitamina C",
+      "Cobre"
+    ],
+    "answer": 2,
+    "explanation": "Macrocitose, hipersegmentação, citopenias e sintomas neurológicos são fortemente associados à deficiência de vitamina B12.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_20",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 20",
+    "stem": "Paciente com anemia hemolítica, reticulocitose, esplenomegalia e esferócitos no esfregaço. Teste de Coombs negativo. Qual a hereditariedade mais comum?",
+    "options": [
+      "Autossômica recessiva",
+      "Autossômica dominante",
+      "Ligada ao X",
+      "Mitocondrial",
+      "Multifatorial"
+    ],
+    "answer": 1,
+    "explanation": "Esferócitos, CHCM elevada, hemólise e Coombs negativo sugerem esferocitose hereditária, geralmente de herança autossômica dominante.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_21",
+    "theme": "Imuno-hematologia",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 21",
+    "stem": "Adolescente de 16 anos com petéquias, equimoses e plaquetas 15.000/mm³ após quadro viral. Sem hepatoesplenomegalia. Qual a conduta inicial se sem sangramento grave?",
+    "options": [
+      "Transfusão de plaquetas",
+      "Corticoterapia",
+      "Esplenectomia",
+      "Observação e acompanhamento",
+      "Imunoglobulina intravenosa de rotina"
+    ],
+    "answer": 3,
+    "explanation": "Em adolescente com provável PTI sem sangramento grave, a observação e o acompanhamento podem ser apropriados; o tratamento depende do risco hemorrágico e da evolução.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_22",
+    "theme": "Coagulopatias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 22",
+    "stem": "Mulher de 30 anos com menorragia, anemia microcítica e TTPA alargado. Qual o distúrbio de hemostasia mais frequente nesse perfil?",
+    "options": [
+      "Hemofilia A",
+      "Doença de von Willebrand",
+      "Deficiência de fator XIII",
+      "Trombastenia de Glanzmann",
+      "Deficiência de vitamina K"
+    ],
+    "answer": 1,
+    "explanation": "Menorragia, epistaxe, plaquetas normais e TTPA discretamente prolongado são um perfil clássico de doença de von Willebrand.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_23",
+    "theme": "Anemias",
+    "level": "Básico",
+    "title": "Banco complementar • Questão 23",
+    "stem": "Homem de 55 anos com anemia, VCM 120 fL, leucopenia e plaquetopenia leves. Qual o achado morfológico clássico no esfregaço?",
+    "options": [
+      "Esferócitos",
+      "Neutrófilos hipersegmentados",
+      "Drepanócitos",
+      "Esquizócitos",
+      "Corpos de Howell-Jolly"
+    ],
+    "answer": 1,
+    "explanation": "Na anemia megaloblástica, o esfregaço mostra macro-ovalócitos e neutrófilos hipersegmentados.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_24",
+    "theme": "Anemias",
+    "level": "Avançado",
+    "title": "Banco complementar • Questão 24",
+    "stem": "Criança com crises de dor óssea, anemia hemolítica e drepanócitos. Qual a complicação aguda mais temida no tórax?",
+    "options": [
+      "Pneumonia bacteriana isolada",
+      "Síndrome torácica aguda",
+      "Embolia gordurosa",
+      "Derrame pleural simples",
+      "Pneumotórax"
+    ],
+    "answer": 1,
+    "explanation": "A síndrome torácica aguda é uma das complicações mais graves da doença falciforme e exige reconhecimento e tratamento rápidos.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_25",
+    "theme": "Imuno-hematologia",
+    "level": "Avançado",
+    "title": "Banco complementar • Questão 25",
+    "stem": "Paciente com plaquetopenia grave, esquizócitos no esfregaço e anemia. Qual a hipótese a ser considerada além de PTI?",
+    "options": [
+      "Púrpura trombocitopênica trombótica",
+      "Deficiência isolada de ferro",
+      "Hemofilia",
+      "Talassemia",
+      "Anemia de doença crônica"
+    ],
+    "answer": 0,
+    "explanation": "Plaquetopenia associada a anemia e esquizócitos levanta suspeita de microangiopatia, especialmente púrpura trombótica trombocitopênica, e não apenas PTI.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_26",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 26",
+    "stem": "Mulher de 42 anos com fadiga, VCM 70 fL, RDW 18%, ferritina baixa. Após 4 semanas de sulfato ferroso oral, Hb não sobe. Qual a melhor conduta?",
+    "options": [
+      "Aumentar dose de ferro oral",
+      "Investigar má absorção ou perda contínua e considerar ferro intravenoso",
+      "Adicionar ácido fólico",
+      "Solicitar medula óssea",
+      "Transfundir"
+    ],
+    "answer": 1,
+    "explanation": "Falha de resposta ao ferro oral exige revisar adesão, absorção e perdas; deve-se considerar ferro intravenoso e investigação etiológica.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_27",
+    "theme": "Coagulopatias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 27",
+    "stem": "Menino de 6 anos com epistaxe recorrente e equimoses. Plaquetas 180.000/mm³, TAP normal, TTPA normal. Qual o próximo exame mais útil?",
+    "options": [
+      "Dosagem de fator VIII",
+      "Função plaquetária / agregação",
+      "Tempo de protrombina isolado",
+      "Eletroforese de hemoglobina",
+      "Teste de Coombs"
+    ],
+    "answer": 1,
+    "explanation": "Sangramento mucocutâneo com plaquetas, TAP e TTPA normais sugere defeito funcional plaquetário; testes de função/agregação são úteis.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_28",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 28",
+    "stem": "Paciente com anemia, icterícia, esplenomegalia e CHCM elevado. Qual o mecanismo principal da hemólise?",
+    "options": [
+      "Defeito de membrana eritrocitária",
+      "Deficiência enzimática",
+      "Hemoglobinopatia estrutural",
+      "Anticorpo quente",
+      "Trauma mecânico"
+    ],
+    "answer": 0,
+    "explanation": "CHCM alta, esferócitos e hemólise apontam para defeito de membrana eritrocitária, especialmente esferocitose hereditária.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_29",
+    "theme": "Anemias",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 29",
+    "stem": "Homem de 70 anos com anemia, VCM 110 fL, sintomas neurológicos e história de gastrectomia parcial. Qual a reposição preferencial?",
+    "options": [
+      "Ácido fólico oral",
+      "Vitamina B12 parenteral",
+      "Ferro oral",
+      "Multivitamínico",
+      "Transfusão isolada"
+    ],
+    "answer": 1,
+    "explanation": "Gastrectomia pode causar má absorção de vitamina B12; com macrocitose e sintomas neurológicos, a reposição parenteral é preferencial.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  },
+  {
+    "id": "sup2_30",
+    "theme": "Imuno-hematologia",
+    "level": "Intermediário",
+    "title": "Banco complementar • Questão 30",
+    "stem": "Mulher de 25 anos com petéquias, gengivorragia e plaquetas 8.000/mm³, sem sangramento visceral. Qual a classificação fisiopatológica mais provável?",
+    "options": [
+      "Falência medular",
+      "Destruição periférica imunológica",
+      "Sequestro esplênico isolado",
+      "Consumo por coagulopatia",
+      "Pseudotrombocitopenia por EDTA – B – B – C – B – A – B – C – B – B – B – B – B – B – B – B – B – B – B – C – B – D – B – B – B – A – B – B – A – B – B"
+    ],
+    "answer": 1,
+    "explanation": "Plaquetopenia isolada intensa após quadro viral e sem sangramento visceral costuma refletir destruição periférica imunológica, compatível com PTI.",
+    "tags": [
+      "Material anexado",
+      "Revisão clínica"
+    ]
+  }
+];
+objectiveQuestions.push(...supplemental2ObjectiveQuestions);
+
+const mockRank = [
+  {name:'Ana C.', correct:14, answered:16, avatar:'AC'}, {name:'Rafael M.', correct:12, answered:15, avatar:'RM'}, {name:'Beatriz L.', correct:10, answered:13, avatar:'BL'}, {name:'João P.', correct:8, answered:12, avatar:'JP'}
+];
+const themes = ['Todos','Anemias','Coagulopatias','Onco-hematologia','Imuno-hematologia'];
+const storageKey = 'hemolab-state-v1';
+let state = { name:'Você', objectiveAnswered:[], objectiveCorrect:[], essaySent:[], currentObjective:0, currentEssay:0, objectiveTheme:'Todos', essayTheme:'Todos', points:0, streak:0, bestStreak:0, essays:{} };
+let currentView = 'dashboard';
+function loadState(){ try { const saved=JSON.parse(localStorage.getItem(storageKey)); if(saved) state={...state,...saved}; } catch(e){} }
+function saveState(){ localStorage.setItem(storageKey, JSON.stringify(state)); }
+function esc(value){ return String(value).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s])); }
+function pct(a,b){ return b ? Math.round(a/b*100) : 0; }
+function filtered(kind){ const list=kind==='objective'?objectiveQuestions:essayQuestions; const theme=state[kind==='objective'?'objectiveTheme':'essayTheme']; return theme==='Todos'?list:list.filter(q=>q.theme===theme); }
+function showView(view){ currentView=view; ['dashboard','objective','essay'].forEach(v=>{document.getElementById('view-'+v).classList.toggle('hidden',v!==view);}); document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===view)); document.querySelectorAll('[data-nav-mobile]').forEach(b=>b.classList.toggle('bg-red-950/70',b.dataset.navMobile===view)); if(view==='dashboard') renderDashboard(); if(view==='objective') renderObjective(); if(view==='essay') renderEssay(); window.scrollTo({top:0,behavior:'smooth'}); }
+function updateShell(){ const total=objectiveQuestions.length; const done=state.objectiveAnswered.length; const p=pct(done,total); document.getElementById('side-progress').textContent=p+'%'; document.getElementById('side-progress-bar').style.width=p+'%'; document.getElementById('user-name-top').textContent=esc(state.name); }
+function badge(text, color='red'){ const cls=color==='green'?'border-emerald-900/70 bg-emerald-950/50 text-emerald-300':color==='amber'?'border-amber-900/70 bg-amber-950/40 text-amber-300':'border-red-950 bg-red-950/40 text-rose-300'; return `<span class="rounded-full border ${cls} px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">${esc(text)}</span>`; }
+function stat(label,value,sub,accent='text-white'){ return `<div class="stat-card rounded-2xl border border-line p-4 shadow-lg"><p class="text-[10px] font-bold uppercase tracking-[.18em] text-zinc-500">${label}</p><p class="mt-3 text-3xl font-black ${accent}">${value}</p><p class="mt-1 text-xs text-zinc-500">${sub}</p></div>`; }
+function renderDashboard(){ updateShell(); const answered=state.objectiveAnswered.length, correct=state.objectiveCorrect.length, accuracy=pct(correct,answered), essays=state.essaySent.length; const rank=getRanking(); const userRank=rank.findIndex(x=>x.isUser)+1; document.getElementById('view-dashboard').innerHTML=`
+  <section class="mb-7 flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><div class="mb-3 flex items-center gap-2">${badge('Sessão de estudo','green')} <span class="text-xs text-zinc-600">/ dashboard</span></div><h1 class="text-3xl font-black tracking-tight sm:text-4xl">Seu centro de <span class="text-rose">hematologia</span></h1><p class="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">Resolva casos clínicos, acompanhe sua evolução e transforme padrões hematológicos em decisões seguras.</p></div><button onclick="openNameModal()" class="rounded-xl border border-line bg-panel2 px-4 py-3 text-sm text-zinc-300 transition hover:border-crimson/60 hover:text-white">✦ Olá, ${esc(state.name)}</button></section>
+  <section class="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${stat('Respondidas',answered,'de '+objectiveQuestions.length+' objetivas','text-white')}${stat('Taxa de acerto',accuracy+'%','desempenho global',accuracy>=70?'text-emerald-400':'text-rose')}${stat('Discursivas enviadas',essays,'casos para comparação','text-amber-300')}${stat('Sequência atual',state.streak,'melhor: '+state.bestStreak, 'text-rose')}</section>
+  <section class="mb-7 grid gap-5 xl:grid-cols-[1.35fr_.65fr]"><div class="overflow-hidden rounded-3xl border border-red-950/70 bg-gradient-to-br from-[#251217] via-panel to-panel p-5 shadow-glow sm:p-7"><div class="flex flex-wrap items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase tracking-[.2em] text-rose">Trilha recomendada</p><h2 class="mt-2 text-2xl font-black">Reforce seus padrões clínicos</h2><p class="mt-2 max-w-xl text-sm leading-6 text-zinc-400">Você está a ${objectiveQuestions.length-answered} quest${objectiveQuestions.length-answered===1?'ão':'ões'} de completar o banco inicial. Comece por uma questão direcionada ou misture os temas.</p></div><div class="grid h-16 w-16 place-items-center rounded-2xl border border-red-900/60 bg-red-950/50 text-center"><strong class="text-xl text-rose">${pct(answered,objectiveQuestions.length)}%</strong><span class="text-[9px] uppercase text-zinc-500">feito</span></div></div><div class="mt-7 h-2 overflow-hidden rounded-full bg-zinc-800"><div class="progress-fill h-full rounded-full bg-gradient-to-r from-wine to-rose" style="width:${pct(answered,objectiveQuestions.length)}%"></div></div><div class="mt-6 flex flex-wrap gap-3"><button onclick="showView('objective')" class="rounded-xl bg-crimson px-4 py-3 text-sm font-bold text-white shadow-lg shadow-red-950/50 transition hover:bg-rose">Continuar objetivas <span class="ml-2">→</span></button><button onclick="showView('essay')" class="rounded-xl border border-line bg-panel2 px-4 py-3 text-sm font-bold text-zinc-300 transition hover:border-rose/50 hover:text-white">Abrir prática discursiva</button></div></div><div class="rounded-3xl border border-line bg-panel p-5"><div class="flex items-center justify-between"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Seu ranking</p><h2 class="mt-2 text-2xl font-black">#${userRank}</h2></div><span class="grid h-11 w-11 place-items-center rounded-xl bg-amber-950/50 text-xl">🏅</span></div><p class="mt-4 text-sm text-zinc-400">${state.points} pontos acumulados · ${correct} acertos</p><div class="mt-5 space-y-3">${rank.slice(0,3).map((r,i)=>rankRow(r,i+1)).join('')}</div><p class="mt-5 text-[11px] leading-5 text-zinc-600">Ranking demonstrativo local. Seus dados ficam salvos apenas neste navegador.</p></div></section>
+  <section class="grid gap-5 xl:grid-cols-[1fr_1fr]"><div class="rounded-3xl border border-line bg-panel p-5"><div class="mb-5 flex items-end justify-between"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Comece por um tema</p><h2 class="mt-2 text-xl font-black">Banco de questões</h2></div><button onclick="resetProgress()" class="text-xs text-zinc-600 transition hover:text-rose">Resetar progresso</button></div><div class="grid gap-3 sm:grid-cols-2">${themes.slice(1).map(t=>{const n=objectiveQuestions.filter(q=>q.theme===t).length; return `<button onclick="startTheme('${t}')" class="group rounded-2xl border border-line bg-panel2 p-4 text-left transition hover:-translate-y-0.5 hover:border-red-900/80"><div class="flex items-center justify-between"><span class="grid h-9 w-9 place-items-center rounded-xl bg-red-950/60 text-rose">${t==='Anemias'?'◉':t==='Coagulopatias'?'◌':t==='Onco-hematologia'?'✣':'✚'}</span><span class="text-xs text-zinc-600">${n} quest${n!==1?'ões':'ão'}</span></div><h3 class="mt-4 font-bold">${t}</h3><p class="mt-1 text-xs text-zinc-500">Revisar agora <span class="text-rose transition group-hover:ml-1">→</span></p></button>`}).join('')}</div></div><div class="rounded-3xl border border-line bg-panel p-5"><div class="mb-5 flex items-end justify-between"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Visão geral</p><h2 class="mt-2 text-xl font-black">Ranking de acertos</h2></div><span class="text-xs text-zinc-600">ordenado por desempenho</span></div><div class="space-y-2">${rank.map((r,i)=>rankRow(r,i+1,true)).join('')}</div></div></section>`; }
+function rankRow(r,pos,compact=false){ const medal=pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':pos; return `<div class="flex items-center gap-3 rounded-xl ${r.isUser?'border border-red-900/60 bg-red-950/20':'border border-transparent bg-zinc-950/30'} ${compact?'px-3 py-2.5':'px-3 py-3'}"><span class="w-6 text-center text-sm">${medal}</span><span class="grid h-8 w-8 place-items-center rounded-lg ${r.isUser?'bg-crimson':'bg-zinc-800'} text-[10px] font-bold">${esc(r.avatar)}</span><div class="min-w-0 flex-1"><div class="flex items-center gap-2"><p class="truncate text-sm font-semibold">${esc(r.name)}</p>${r.isUser?'<span class="text-[9px] uppercase tracking-wider text-rose">você</span>':''}</div><p class="text-[11px] text-zinc-600">${r.correct} acertos · ${pct(r.correct,r.answered)}% de aproveitamento</p></div><strong class="text-sm text-zinc-300">${r.points} pts</strong></div>`; }
+function getRanking(){ const user={name:state.name,correct:state.objectiveCorrect.length,answered:state.objectiveAnswered.length,avatar:(state.name||'Você').slice(0,2).toUpperCase(),points:state.points,isUser:true}; return [...mockRank.map(x=>({...x,points:x.correct*10+x.answered})),user].sort((a,b)=>b.correct-a.correct||pct(b.correct,b.answered)-pct(a.correct,a.answered)||b.answered-a.answered); }
+function themeButtons(kind){ const current=state[kind==='objective'?'objectiveTheme':'essayTheme']; return `<div class="flex flex-wrap gap-2">${themes.map(t=>`<button onclick="setTheme('${kind}','${t}')" class="rounded-full border px-3 py-2 text-xs font-semibold transition ${current===t?'border-crimson bg-red-950/60 text-rose':'border-line bg-panel2 text-zinc-500 hover:border-zinc-600 hover:text-zinc-200'}">${t}</button>`).join('')}</div>`; }
+function renderObjective(){ updateShell(); const list=filtered('objective'); if(!list.length){document.getElementById('view-objective').innerHTML='<div class="rounded-3xl border border-line bg-panel p-10 text-center"><p class="text-4xl">◌</p><h2 class="mt-4 text-2xl font-black">Nenhuma questão neste filtro</h2><button onclick="setTheme(\'objective\',\'Todos\')" class="mt-5 rounded-xl bg-crimson px-4 py-3 text-sm font-bold">Ver banco completo</button></div>';return;} const q=list[state.currentObjective%list.length]; const answered=state.objectiveAnswered.includes(q.id); const previous=state.objectiveAnswered.includes(q.id)?(state.objectiveCorrect.includes(q.id)?q.answer:null):null; document.getElementById('view-objective').innerHTML=`<section class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><div class="mb-3 flex items-center gap-2">${badge('Questões objetivas')} <span class="text-xs text-zinc-600">/ ${state.objectiveTheme}</span></div><h1 class="text-3xl font-black">Raciocínio <span class="text-rose">clínico</span></h1><p class="mt-2 text-sm text-zinc-400">Escolha uma alternativa. O feedback aparece imediatamente após sua resposta.</p></div><div class="text-left md:text-right"><p class="text-xs text-zinc-500">Questão ${state.currentObjective%list.length+1} de ${list.length}</p><div class="mt-2 h-2 w-40 overflow-hidden rounded-full bg-zinc-800 md:ml-auto"><div class="progress-fill h-full rounded-full bg-rose" style="width:${((state.currentObjective%list.length+1)/list.length)*100}%"></div></div></div></section><div class="mb-6 rounded-2xl border border-line bg-panel p-4"><div class="mb-3 flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-[.16em] text-zinc-500">Filtrar por subtema</span><span class="text-xs text-zinc-600">${state.objectiveAnswered.length} respondidas no total</span></div>${themeButtons('objective')}</div><article class="rounded-3xl border border-line bg-panel p-5 shadow-glow sm:p-8"><div class="flex flex-wrap items-center gap-2">${badge(q.theme)} ${badge(q.level,'amber')} </div><h2 class="mt-5 text-xl font-bold leading-8 sm:text-2xl">${q.title}</h2><p class="mt-5 max-w-4xl text-[15px] leading-8 text-zinc-300">${q.stem}</p><div class="mt-7 grid gap-3">${q.options.map((op,i)=>`<button data-option="${i}" onclick="answerObjective('${q.id}',${i})" class="option-card ${answered?'disabled':''} flex w-full items-start gap-4 rounded-2xl border border-line bg-panel2 p-4 text-left ${answered&&i===q.answer?'correct':''} ${answered&&i!==q.answer&&state.objectiveAnswered.includes(q.id)&&state.objectiveCorrect.includes(q.id)===false&&i===getAttempt(q.id)?'wrong':''}"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-zinc-900 text-xs font-black text-zinc-400">${String.fromCharCode(65+i)}</span><span class="pt-1 text-sm leading-6 text-zinc-300">${op}</span>${answered&&i===q.answer?'<span class="ml-auto text-emerald-400">✓</span>':''}</button>`).join('')}</div>${answered?`<div class="mt-7 rounded-2xl border border-emerald-900/60 bg-emerald-950/20 p-5"><div class="flex items-center gap-2 text-sm font-bold text-emerald-300"><span class="grid h-6 w-6 place-items-center rounded-full bg-emerald-900">${state.objectiveCorrect.includes(q.id)?'✓':'!'}</span>${state.objectiveCorrect.includes(q.id)?'Resposta correta':'Resposta registrada'}</div><p class="mt-3 text-sm leading-7 text-zinc-300"><strong class="text-zinc-100">Comentário do professor:</strong> ${q.explanation}</p><div class="mt-4 flex flex-wrap gap-2">${q.tags.map(t=>`<span class="rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] text-zinc-500">${t}</span>`).join('')}</div></div>`:''}<div class="mt-8 flex flex-wrap justify-between gap-3"><button onclick="showView('dashboard')" class="rounded-xl border border-line px-4 py-3 text-sm font-semibold text-zinc-400 transition hover:text-white">← Dashboard</button>${answered?`<button onclick="nextObjective()" class="rounded-xl bg-crimson px-5 py-3 text-sm font-bold text-white transition hover:bg-rose">Próxima questão <span class="ml-2">→</span></button>`:'<p class="self-center text-xs text-zinc-600">Selecione uma alternativa para receber o feedback.</p>'}</div></article>`; }
+function getAttempt(id){ try{return JSON.parse(localStorage.getItem('hemolab-attempts')||'{}')[id];}catch(e){return null;} }
+function answerObjective(id,index){ const q=objectiveQuestions.find(x=>x.id===id); if(!q||state.objectiveAnswered.includes(id))return; state.objectiveAnswered.push(id); localStorage.setItem('hemolab-attempts',JSON.stringify({...JSON.parse(localStorage.getItem('hemolab-attempts')||'{}'),[id]:index})); if(index===q.answer){state.objectiveCorrect.push(id);state.points+=10;state.streak++;state.bestStreak=Math.max(state.bestStreak,state.streak);toast('Acerto! Seu raciocínio está no caminho certo.','success');}else{state.streak=0;toast('Resposta registrada. Revise o comentário do professor.','info');} saveState(); renderObjective(); }
+function nextObjective(){ const list=filtered('objective'); state.currentObjective=(state.currentObjective+1)%list.length; saveState(); renderObjective(); }
+function renderEssay(){ updateShell(); const list=filtered('essay'); const q=list[state.currentEssay%list.length]; const saved=state.essays[q.id]||{}; const sent=state.essaySent.includes(q.id); document.getElementById('view-essay').innerHTML=`<section class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><div class="mb-3 flex items-center gap-2">${badge('Estudo de caso')} <span class="text-xs text-zinc-600">/ ${state.essayTheme}</span></div><h1 class="text-3xl font-black">Prática <span class="text-rose">discursiva</span></h1><p class="mt-2 text-sm text-zinc-400">Estruture sua hipótese, justifique os achados e compare com o padrão esperado.</p></div><div class="text-left md:text-right"><p class="text-xs text-zinc-500">Caso ${state.currentEssay%list.length+1} de ${list.length}</p><p class="mt-2 text-xs text-zinc-600">${state.essaySent.length} enviados</p></div></section><div class="mb-6 rounded-2xl border border-line bg-panel p-4"><div class="mb-3 flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-[.16em] text-zinc-500">Filtrar por subtema</span><span class="text-xs text-zinc-600">Compare sem medo: é prática.</span></div>${themeButtons('essay')}</div><article class="rounded-3xl border border-line bg-panel p-5 shadow-glow sm:p-8"><div class="flex flex-wrap items-center gap-2">${badge(q.theme)} ${badge(q.level,'amber')}</div><h2 class="mt-5 text-xl font-bold leading-8 sm:text-2xl">${q.title}</h2><div class="mt-5 rounded-2xl border border-red-950/70 bg-red-950/20 p-5"><p class="text-[10px] font-bold uppercase tracking-[.18em] text-rose">Caso clínico</p><p class="mt-3 text-[15px] leading-8 text-zinc-300">${q.stem}</p></div><label class="mt-7 block text-sm font-bold text-zinc-200" for="essay-text">Sua resposta</label><textarea id="essay-text" maxlength="2000" oninput="document.getElementById('essay-count').textContent=this.value.length+'/2000'" class="mt-3 min-h-[230px] w-full resize-y rounded-2xl border border-line bg-zinc-950 p-4 text-sm leading-7 text-zinc-200 outline-none transition placeholder:text-zinc-700 focus:border-crimson" placeholder="Digite sua hipótese diagnóstica, o raciocínio clínico e a conduta...">${esc(saved.text||'')}</textarea><div class="mt-2 flex justify-between text-xs text-zinc-600"><span>Use linguagem clínica objetiva e cite os dados relevantes.</span><span id="essay-count">${(saved.text||'').length}/2000</span></div><div class="mt-5 flex flex-wrap gap-3"><button onclick="sendEssay('${q.id}')" class="rounded-xl bg-crimson px-5 py-3 text-sm font-bold text-white transition hover:bg-rose">${sent?'Atualizar resposta':'Enviar resposta'}</button>${sent?`<button onclick="toggleAnswer('${q.id}')" class="rounded-xl border border-line px-5 py-3 text-sm font-bold text-zinc-300 transition hover:border-rose/50 hover:text-white">${saved.show?'Ocultar gabarito':'Ver gabarito comentado'}</button>`:''}</div>${sent&&saved.show?`<div class="mt-7 space-y-5"><div class="rounded-2xl border border-emerald-900/60 bg-emerald-950/20 p-5"><p class="text-xs font-bold uppercase tracking-[.16em] text-emerald-300">Padrão de resposta esperado</p><p class="mt-3 text-sm leading-7 text-zinc-300">${q.answer}</p></div><div class="rounded-2xl border border-line bg-panel2 p-5"><p class="text-xs font-bold uppercase tracking-[.16em] text-zinc-500">Critérios de correção</p><div class="mt-3 grid gap-2 sm:grid-cols-2">${q.criteria.map((c,i)=>`<div class="flex gap-2 text-sm text-zinc-400"><span class="text-rose">${i+1}.</span>${c}</div>`).join('')}</div><div class="mt-5 border-t border-line pt-4"><label class="text-xs font-bold uppercase tracking-[.16em] text-zinc-500">Autoavaliação</label><div class="mt-3 flex gap-2">${[1,2,3,4,5].map(n=>`<button onclick="rateEssay('${q.id}',${n})" class="grid h-9 w-9 place-items-center rounded-lg border ${saved.rating===n?'border-rose bg-red-950/60 text-rose':'border-line bg-zinc-950 text-zinc-500'} text-sm transition hover:border-rose">${n}</button>`).join('')}</div><p class="mt-2 text-xs text-zinc-600">De 1 (preciso revisar) a 5 (domino o tema).</p></div></div></div>`:''}<div class="mt-8 flex justify-between gap-3"><button onclick="showView('dashboard')" class="rounded-xl border border-line px-4 py-3 text-sm font-semibold text-zinc-400 transition hover:text-white">← Dashboard</button><button onclick="nextEssay()" class="rounded-xl border border-line px-4 py-3 text-sm font-bold text-zinc-300 transition hover:border-rose/50 hover:text-white">Próximo caso →</button></div></article>`; }
+function sendEssay(id){ const text=document.getElementById('essay-text').value.trim(); if(text.length<20){toast('Escreva pelo menos 20 caracteres antes de enviar.','error');return;} const old=state.essays[id]||{}; state.essays[id]={...old,text,show:true}; if(!state.essaySent.includes(id)) state.essaySent.push(id); saveState(); toast('Resposta salva. Compare com o gabarito comentado.','success'); renderEssay(); }
+function toggleAnswer(id){ state.essays[id].show=!state.essays[id].show; saveState(); renderEssay(); }
+function rateEssay(id,n){ state.essays[id].rating=n; saveState(); renderEssay(); toast('Autoavaliação salva.','success'); }
+function nextEssay(){ const list=filtered('essay'); state.currentEssay=(state.currentEssay+1)%list.length; saveState(); renderEssay(); }
+function setTheme(kind,theme){ if(kind==='objective'){state.objectiveTheme=theme;state.currentObjective=0;showView('objective');}else{state.essayTheme=theme;state.currentEssay=0;showView('essay');} saveState(); }
+function startTheme(theme){state.objectiveTheme=theme;state.currentObjective=0;saveState();showView('objective');}
+function toast(msg,type='info'){ const root=document.getElementById('toast-root'); const color=type==='success'?'border-emerald-800 bg-emerald-950 text-emerald-200':type==='error'?'border-red-800 bg-red-950 text-red-200':'border-line bg-panel2 text-zinc-200'; const el=document.createElement('div');el.className=`toast max-w-xs rounded-xl border ${color} px-4 py-3 text-sm shadow-2xl`;el.textContent=msg;root.appendChild(el);setTimeout(()=>el.remove(),3200); }
+function openNameModal(){ document.getElementById('modal-root').innerHTML=`<div class="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4"><div class="w-full max-w-md rounded-3xl border border-line bg-panel p-6 shadow-2xl"><div class="flex items-start justify-between"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-rose">Perfil local</p><h2 class="mt-2 text-2xl font-black">Como devemos chamar você?</h2></div><button onclick="closeModal()" class="text-xl text-zinc-600 hover:text-white">×</button></div><p class="mt-3 text-sm leading-6 text-zinc-400">Seu nome aparece apenas no ranking deste navegador. Nenhum dado é enviado.</p><input id="name-input" value="${esc(state.name)}" maxlength="24" class="mt-5 w-full rounded-xl border border-line bg-zinc-950 px-4 py-3 text-sm text-white outline-none focus:border-crimson" placeholder="Ex.: Dra. Camila" /><div class="mt-5 flex justify-end gap-3"><button onclick="closeModal()" class="rounded-xl border border-line px-4 py-3 text-sm text-zinc-400">Cancelar</button><button onclick="saveName()" class="rounded-xl bg-crimson px-4 py-3 text-sm font-bold">Salvar perfil</button></div></div></div>`;setTimeout(()=>document.getElementById('name-input')?.focus(),50); }
+function saveName(){const n=document.getElementById('name-input').value.trim()||'Você';state.name=n.slice(0,24);saveState();closeModal();updateShell();renderDashboard();toast('Perfil atualizado.','success');}
+function closeModal(){document.getElementById('modal-root').innerHTML='';}
+function resetProgress(){ if(confirm('Tem certeza que deseja apagar o progresso salvo neste navegador?')){localStorage.removeItem(storageKey);localStorage.removeItem('hemolab-attempts');state={name:state.name,objectiveAnswered:[],objectiveCorrect:[],essaySent:[],currentObjective:0,currentEssay:0,objectiveTheme:'Todos',essayTheme:'Todos',points:0,streak:0,bestStreak:0,essays:{}};showView('dashboard');toast('Progresso reiniciado.','info');} }
+loadState(); showView('dashboard');
+</script>
+</body>
+</html>
